@@ -8,10 +8,8 @@
 LICENSE
 docs/
 
-# Development files
-.env
-.env.*
-!.env.dist
+# Environment files (use build args or runtime env instead)
+.env*
 
 # IDE
 .vscode/
