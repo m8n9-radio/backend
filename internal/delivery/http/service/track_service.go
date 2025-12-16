@@ -31,9 +31,9 @@ func (s *trackService) Upsert(ctx context.Context, req *dto.CreateTrackRequest) 
 
 	track := &entity.Track{
 		ID:     id,
-		MD5Sum: req.MD5Sum,
-		Title:  req.Title,
-		Cover:  req.Cover,
+		MD5Sum: req.Md5,
+		Title:  req.StreamTitle,
+		Cover:  req.StreamUrl,
 	}
 
 	return s.repo.Upsert(ctx, track)

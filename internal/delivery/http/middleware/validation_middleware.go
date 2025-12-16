@@ -7,7 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-const TrackRequestKey = "validated_track_request"
+const TrackRequestKey = "dto"
 
 var validate = validator.New()
 
@@ -39,30 +39,13 @@ func ValidateCreateTrack() fiber.Handler {
 
 func formatValidationError(fe validator.FieldError) string {
 	switch fe.Field() {
+	case "Md5":
+		if fe.Tag() == "required" {
+			return "Md5 is required"
+		}
 	case "StreamTitle":
-		switch fe.Tag() {
-		case "required":
+		if fe.Tag() == "required" {
 			return "StreamTitle is required"
-		case "min":
-			return "StreamTitle must be at least 1 character"
-		case "max":
-			return "StreamTitle must be at most 500 characters"
-		}
-	case "StreamUrl":
-		switch fe.Tag() {
-		case "required":
-			return "StreamUrl is required"
-		case "http_url":
-			return "StreamUrl must be a valid HTTP URL"
-		}
-	case "MD5Sum":
-		switch fe.Tag() {
-		case "required":
-			return "MD5Sum is required"
-		case "len":
-			return "MD5Sum must be 32 characters"
-		case "hexadecimal":
-			return "MD5Sum must be hexadecimal characters"
 		}
 	}
 	return "Validation failed for " + fe.Field()

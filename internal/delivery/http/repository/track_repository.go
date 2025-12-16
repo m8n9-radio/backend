@@ -34,6 +34,11 @@ func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*ent
 		INSERT INTO tracks (id, md5sum, title, cover)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (md5sum) DO UPDATE SET
+			cover = CASE
+				WHEN (tracks.cover IS NULL OR tracks.cover = '') AND EXCLUDED.cover != ''
+				THEN EXCLUDED.cover
+				ELSE tracks.cover
+			END,
 			rotate = tracks.rotate + 1,
 			updated_at = NOW()
 		RETURNING id, md5sum, title, cover, rotate, likes, dislikes, created_at, updated_at
@@ -46,11 +51,14 @@ func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*ent
 		track.ID, track.MD5Sum, track.Title, track.Cover,
 	).Scan(
 		&result.ID,
+		&result.MD5Sum,
 		&result.Title,
 		&result.Cover,
 		&result.Rotate,
 		&result.Likes,
 		&result.Dislikes,
+		&result.CreatedAt,
+		&result.UpdatedAt,
 	)
 
 	if err != nil {

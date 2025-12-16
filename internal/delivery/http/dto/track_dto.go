@@ -1,19 +1,11 @@
 package dto
 
 type CreateTrackRequest struct {
-	MD5Sum string `json:"md5sum" validate:"required,len=32,hexadecimal"`
-	Title  string `json:"title" validate:"required,min=1,max=500"`
-	Cover  string `json:"cover" validate:"required,url"`
+	Md5         string `json:"Md5" validate:"required"`
+	StreamTitle string `json:"StreamTitle" validate:"required"`
+	StreamUrl   string `json:"StreamUrl"`
 }
 
 type TrackResponse struct {
-	ID        string `json:"id"`
-	MD5Sum    string `json:"md5sum"`
-	Title     string `json:"title"`
-	Cover     string `json:"cover"`
-	Rotate    int    `json:"rotate"`
-	Likes     int    `json:"likes"`
-	Dislikes  int    `json:"dislikes"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	Rotate int `json:"rotate"`
 }
