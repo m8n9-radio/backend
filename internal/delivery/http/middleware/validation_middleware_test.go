@@ -27,9 +27,9 @@ func TestProperty_ValidationMiddleware_InvalidInputReturns400(t *testing.T) {
 		func(_ int) bool {
 			app := setupTestApp()
 			req := dto.CreateTrackRequest{
+				Md5:         "d41d8cd98f00b204e9800998ecf8427e",
 				StreamTitle: "",
 				StreamUrl:   "https://example.com/cover.jpg",
-				MD5Sum:      "d41d8cd98f00b204e9800998ecf8427e",
 			}
 			resp := makeRequest(app, req)
 			return resp.StatusCode == fiber.StatusBadRequest
@@ -42,9 +42,9 @@ func TestProperty_ValidationMiddleware_InvalidInputReturns400(t *testing.T) {
 		func(invalidUrl string) bool {
 			app := setupTestApp()
 			req := dto.CreateTrackRequest{
+				Md5:         "d41d8cd98f00b204e9800998ecf8427e",
 				StreamTitle: "Artist - Title",
 				StreamUrl:   invalidUrl,
-				MD5Sum:      "d41d8cd98f00b204e9800998ecf8427e",
 			}
 			resp := makeRequest(app, req)
 			return resp.StatusCode == fiber.StatusBadRequest
@@ -52,14 +52,14 @@ func TestProperty_ValidationMiddleware_InvalidInputReturns400(t *testing.T) {
 		gen.OneConstOf("not-a-url", "just-text", "", "missing-protocol.com"),
 	))
 
-	// Property: Invalid MD5Sum returns 400
-	properties.Property("invalid MD5Sum returns 400", prop.ForAll(
+	// Property: Invalid Md5 returns 400
+	properties.Property("invalid Md5 returns 400", prop.ForAll(
 		func(invalidMd5 string) bool {
 			app := setupTestApp()
 			req := dto.CreateTrackRequest{
+				Md5:         invalidMd5,
 				StreamTitle: "Artist - Title",
 				StreamUrl:   "https://example.com/cover.jpg",
-				MD5Sum:      invalidMd5,
 			}
 			resp := makeRequest(app, req)
 			return resp.StatusCode == fiber.StatusBadRequest
@@ -72,9 +72,9 @@ func TestProperty_ValidationMiddleware_InvalidInputReturns400(t *testing.T) {
 		func(_ int) bool {
 			app := setupTestApp()
 			req := dto.CreateTrackRequest{
+				Md5:         "d41d8cd98f00b204e9800998ecf8427e",
 				StreamTitle: "",
 				StreamUrl:   "https://example.com/cover.jpg",
-				MD5Sum:      "d41d8cd98f00b204e9800998ecf8427e",
 			}
 			resp := makeRequest(app, req)
 

@@ -8,7 +8,6 @@ import (
 
 	"hub/internal/delivery/http/entity"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -30,14 +29,13 @@ func TestProperty_Repository_UpsertBehavior(t *testing.T) {
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)
 
-	// Property: Upsert increments rotate on duplicate MD5Sum
-	properties.Property("upsert increments rotate on duplicate MD5Sum", prop.ForAll(
-		func(md5sum string) bool {
+	// Property: Upsert increments rotate on duplicate ID
+	properties.Property("upsert increments rotate on duplicate ID", prop.ForAll(
+		func(id string) bool {
 			track1 := &entity.Track{
-				ID:     uuid.Must(uuid.NewV7()),
-				MD5Sum: md5sum,
-				Title:  "Artist - Title 1",
-				Cover:  "https://example.com/cover1.jpg",
+				ID:    id,
+				Title: "Artist - Title 1",
+				Cover: "https://example.com/cover1.jpg",
 			}
 
 			result1, err := repo.Upsert(ctx, track1)
@@ -46,10 +44,9 @@ func TestProperty_Repository_UpsertBehavior(t *testing.T) {
 			}
 
 			track2 := &entity.Track{
-				ID:     uuid.Must(uuid.NewV7()),
-				MD5Sum: md5sum,
-				Title:  "Artist - Title 2",
-				Cover:  "https://example.com/cover2.jpg",
+				ID:    id,
+				Title: "Artist - Title 2",
+				Cover: "https://example.com/cover2.jpg",
 			}
 
 			result2, err := repo.Upsert(ctx, track2)
@@ -62,14 +59,13 @@ func TestProperty_Repository_UpsertBehavior(t *testing.T) {
 		genValidMD5Sum(),
 	))
 
-	// Property: ExistsByMD5Sum returns true after upsert
-	properties.Property("ExistsByMD5Sum returns true after track upsert", prop.ForAll(
-		func(md5sum string) bool {
+	// Property: ExistsByID returns true after upsert
+	properties.Property("ExistsByID returns true after track upsert", prop.ForAll(
+		func(id string) bool {
 			track := &entity.Track{
-				ID:     uuid.Must(uuid.NewV7()),
-				MD5Sum: md5sum,
-				Title:  "Artist - Title",
-				Cover:  "https://example.com/cover.jpg",
+				ID:    id,
+				Title: "Artist - Title",
+				Cover: "https://example.com/cover.jpg",
 			}
 
 			_, err := repo.Upsert(ctx, track)
@@ -77,7 +73,7 @@ func TestProperty_Repository_UpsertBehavior(t *testing.T) {
 				return true // Skip if upsert fails
 			}
 
-			exists, err := repo.ExistsByMD5Sum(ctx, md5sum)
+			exists, err := repo.ExistsByID(ctx, id)
 			return err == nil && exists
 		},
 		genValidMD5Sum(),

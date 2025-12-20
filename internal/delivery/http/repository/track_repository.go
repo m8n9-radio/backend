@@ -17,8 +17,8 @@ var (
 type (
 	TrackRepository interface {
 		Upsert(ctx context.Context, track *entity.Track) (*entity.Track, error)
-		ExistsByMD5Sum(ctx context.Context, md5sum string) (bool, error)
-		GetByMD5Sum(ctx context.Context, md5sum string) (*entity.Track, error)
+		ExistsByID(ctx context.Context, id string) (bool, error)
+		GetByID(ctx context.Context, id string) (*entity.Track, error)
 	}
 	trackRepository struct {
 		pool *pgxpool.Pool
@@ -31,9 +31,9 @@ func NewTrackRepository(pool *pgxpool.Pool) TrackRepository {
 
 func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*entity.Track, error) {
 	query := `
-		INSERT INTO tracks (id, md5sum, title, cover)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (md5sum) DO UPDATE SET
+		INSERT INTO tracks (id, title, cover)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO UPDATE SET
 			cover = CASE
 				WHEN (tracks.cover IS NULL OR tracks.cover = '') AND EXCLUDED.cover != ''
 				THEN EXCLUDED.cover
@@ -41,22 +41,22 @@ func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*ent
 			END,
 			rotate = tracks.rotate + 1,
 			updated_at = NOW()
-		RETURNING id, md5sum, title, cover, rotate, likes, dislikes, created_at, updated_at
+		RETURNING id, title, cover, rotate, likes, dislikes, listeners, created_at, updated_at
 	`
 
 	var result entity.Track
 	err := r.pool.QueryRow(
 		ctx,
 		query,
-		track.ID, track.MD5Sum, track.Title, track.Cover,
+		track.ID, track.Title, track.Cover,
 	).Scan(
 		&result.ID,
-		&result.MD5Sum,
 		&result.Title,
 		&result.Cover,
 		&result.Rotate,
 		&result.Likes,
 		&result.Dislikes,
+		&result.Listeners,
 		&result.CreatedAt,
 		&result.UpdatedAt,
 	)
@@ -68,11 +68,11 @@ func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*ent
 	return &result, nil
 }
 
-func (r *trackRepository) ExistsByMD5Sum(ctx context.Context, md5sum string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM tracks WHERE md5sum = $1)`
+func (r *trackRepository) ExistsByID(ctx context.Context, id string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM tracks WHERE id = $1)`
 
 	var exists bool
-	err := r.pool.QueryRow(ctx, query, md5sum).Scan(&exists)
+	err := r.pool.QueryRow(ctx, query, id).Scan(&exists)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
@@ -83,21 +83,21 @@ func (r *trackRepository) ExistsByMD5Sum(ctx context.Context, md5sum string) (bo
 	return exists, nil
 }
 
-func (r *trackRepository) GetByMD5Sum(ctx context.Context, md5sum string) (*entity.Track, error) {
+func (r *trackRepository) GetByID(ctx context.Context, id string) (*entity.Track, error) {
 	query := `
-		SELECT id, md5sum, title, cover, rotate, likes, dislikes, created_at, updated_at
-		FROM tracks WHERE md5sum = $1
+		SELECT id, title, cover, rotate, likes, dislikes, listeners, created_at, updated_at
+		FROM tracks WHERE id = $1
 	`
 
 	var result entity.Track
-	err := r.pool.QueryRow(ctx, query, md5sum).Scan(
+	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&result.ID,
-		&result.MD5Sum,
 		&result.Title,
 		&result.Cover,
 		&result.Rotate,
 		&result.Likes,
 		&result.Dislikes,
+		&result.Listeners,
 		&result.CreatedAt,
 		&result.UpdatedAt,
 	)

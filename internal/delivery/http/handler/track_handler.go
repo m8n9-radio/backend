@@ -38,9 +38,7 @@ func (h *trackHandler) Upsert(c *fiber.Ctx) error {
 		})
 	}
 
-	response := dto.TrackResponse{
+	return c.Status(fiber.StatusCreated).JSON(dto.TrackResponse{
 		Rotate: track.Rotate,
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(response)
+	})
 }
