@@ -22,11 +22,13 @@ type (
 		logger *logger.Logger
 		pool   *pgxpool.Pool
 
-		trackHandler handler.TrackHandler
+		trackHandler    handler.TrackHandler
+		reactionHandler handler.ReactionHandler
+		radioHandler    handler.RadioHandler
 	}
 )
 
-func NewServer(logger *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler) Server {
+func NewServer(logger *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler, reactionHandler handler.ReactionHandler, radioHandler handler.RadioHandler) Server {
 	app := FiberApplication()
 
 	server := &server{
@@ -34,7 +36,9 @@ func NewServer(logger *logger.Logger, pool *pgxpool.Pool, trackHandler handler.T
 		logger: logger,
 		pool:   pool,
 
-		trackHandler: trackHandler,
+		trackHandler:    trackHandler,
+		reactionHandler: reactionHandler,
+		radioHandler:    radioHandler,
 	}
 
 	server.useMiddlewares()
@@ -49,6 +53,8 @@ func (s *server) useMiddlewares() {
 
 func (s *server) useRouters() {
 	s.useTrackRoute()
+	s.useReactionRoute()
+	s.useRadioRoute()
 }
 
 func (s *server) Listen(port int) error {

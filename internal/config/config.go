@@ -13,6 +13,8 @@ type (
 		LogLevel() string
 		DatabaseConnection() (string, int, int)
 		IcecastConnection() (string, string, string)
+		IcecastStatusURL() string
+		IcecastStreamURL() string
 		SchedulerEnabled() bool
 	}
 	config struct {
@@ -100,6 +102,14 @@ func (c *config) IcecastConnection() (string, string, string) {
 	return fmt.Sprintf("%s:%d", c.icecastHost, c.icecastPort),
 		c.icecastMount,
 		c.icecastAdminPassword
+}
+
+func (c *config) IcecastStatusURL() string {
+	return fmt.Sprintf("http://%s:%d/status-json.xsl", c.icecastHost, c.icecastPort)
+}
+
+func (c *config) IcecastStreamURL() string {
+	return fmt.Sprintf("http://%s:%d%s", c.icecastHost, c.icecastPort, c.icecastMount)
 }
 
 func (c *config) SchedulerEnabled() bool {

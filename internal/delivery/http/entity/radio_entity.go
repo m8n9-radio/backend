@@ -1,8 +1,13 @@
 package entity
 
-type Radio struct {
-	Name        string `json:"name"`
-	Description string `json:"dsescription"`
-	StreamUrl   string `json:"streamUrl"`
-	CreateAt    string `json:"createAt"`
+type ListenerEntity struct {
+	Current int `json:"current"`
+	Peak    int `json:"peak"`
+}
+
+type RadioEntity struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	StreamUrl   string         `json:"streamUrl"`
+	Listener    ListenerEntity `json:"listener"`
 }

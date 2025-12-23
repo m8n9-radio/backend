@@ -30,7 +30,13 @@ func InitializeApp() (*Application, func(), error) {
 	trackRepository := ProvideTrackRepository(pool)
 	trackService := ProvideTrackService(trackRepository)
 	trackHandler := ProvideTrackHandler(trackService)
-	server := ProvideServer(logger, pool, trackHandler)
+	reactionRepository := ProvideReactionRepository(pool)
+	reactionService := ProvideReactionService(reactionRepository, trackRepository)
+	reactionHandler := ProvideReactionHandler(reactionService)
+	icecastClient := ProvideIcecastClient(config)
+	radioService := ProvideRadioService(config, icecastClient)
+	radioHandler := ProvideRadioHandler(radioService)
+	server := ProvideServer(logger, pool, trackHandler, reactionHandler, radioHandler)
 	scheduler := ProvideScheduler(config, logger, pool)
 	application := ProvideApplication(config, logger, database, server, scheduler)
 	return application, func() {
@@ -106,9 +112,39 @@ func ProvideTrackHandler(svc service.TrackService) handler.TrackHandler {
 	return handler.NewTrackHandler(svc)
 }
 
+// ProvideReactionRepository creates a new ReactionRepository
+func ProvideReactionRepository(pool *pgxpool.Pool) repository.ReactionRepository {
+	return repository.NewReactionRepository(pool)
+}
+
+// ProvideReactionService creates a new ReactionService
+func ProvideReactionService(reactionRepo repository.ReactionRepository, trackRepo repository.TrackRepository) service.ReactionService {
+	return service.NewReactionService(reactionRepo, trackRepo)
+}
+
+// ProvideReactionHandler creates a new ReactionHandler
+func ProvideReactionHandler(svc service.ReactionService) handler.ReactionHandler {
+	return handler.NewReactionHandler(svc)
+}
+
+// ProvideIcecastClient creates a new IcecastClient
+func ProvideIcecastClient(cfg config.Config) service.IcecastClient {
+	return service.NewIcecastClient(cfg)
+}
+
+// ProvideRadioService creates a new RadioService
+func ProvideRadioService(cfg config.Config, icecastClient service.IcecastClient) service.RadioService {
+	return service.NewRadioService(cfg, icecastClient)
+}
+
+// ProvideRadioHandler creates a new RadioHandler
+func ProvideRadioHandler(svc service.RadioService) handler.RadioHandler {
+	return handler.NewRadioHandler(svc)
+}
+
 // ProvideServer creates a new Server instance
-func ProvideServer(log *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler) server.Server {
-	return server.NewServer(log, pool, trackHandler)
+func ProvideServer(log *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler, reactionHandler handler.ReactionHandler, radioHandler handler.RadioHandler) server.Server {
+	return server.NewServer(log, pool, trackHandler, reactionHandler, radioHandler)
 }
 
 // ProvideScheduler creates a new Scheduler instance
@@ -152,6 +188,12 @@ var ProviderSet = wire.NewSet(
 	ProvideTrackRepository,
 	ProvideTrackService,
 	ProvideTrackHandler,
+	ProvideReactionRepository,
+	ProvideReactionService,
+	ProvideReactionHandler,
+	ProvideIcecastClient,
+	ProvideRadioService,
+	ProvideRadioHandler,
 	ProvideServer,
 	ProvideScheduler,
 	ProvideApplication,
