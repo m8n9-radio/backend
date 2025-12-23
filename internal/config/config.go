@@ -12,9 +12,7 @@ type (
 		Port() int
 		LogLevel() string
 		DatabaseConnection() (string, int, int)
-		IcecastConnection() (string, string, string)
-		IcecastStatusURL() string
-		IcecastStreamURL() string
+		IcecastConnection() (string, string, string, string)
 		SchedulerEnabled() bool
 	}
 	config struct {
@@ -30,12 +28,13 @@ type (
 		dbMaxConns int
 		dbMinConns int
 
-		icecastHost          string
-		icecastPort          int
-		icecastMount         string
-		icecastAdminPassword string
+		icecastHost     string
+		icecastPort     int
+		icecastUser     string
+		icecastPassword string
+		icecastMount    string
 
-		schedulerEnabled bool
+		echeduler bool
 	}
 )
 
@@ -56,8 +55,9 @@ func NewConfig() Config {
 
 	viper.SetDefault("ICECAST_HOST", "127.0.0.1")
 	viper.SetDefault("ICECAST_PORT", "8000")
+	viper.SetDefault("ICECAST_USER", "admin")
+	viper.SetDefault("ICECAST_PASSWORD", "changeme")
 	viper.SetDefault("ICECAST_MOUNT", "/mp3")
-	viper.SetDefault("ICECAST_ADMIN_PASSWORD", "changeme")
 
 	viper.SetDefault("SCHEDULER_ENABLED", "false")
 
@@ -74,12 +74,13 @@ func NewConfig() Config {
 		dbMaxConns: viper.GetInt("DB_MAX_CONNS"),
 		dbMinConns: viper.GetInt("DB_MIN_CONNS"),
 
-		icecastHost:          viper.GetString("ICECAST_HOST"),
-		icecastPort:          viper.GetInt("ICECAST_PORT"),
-		icecastMount:         viper.GetString("ICECAST_MOUNT"),
-		icecastAdminPassword: viper.GetString("ICECAST_ADMIN_PASSWORD"),
+		icecastHost:     viper.GetString("ICECAST_HOST"),
+		icecastPort:     viper.GetInt("ICECAST_PORT"),
+		icecastUser:     viper.GetString("ICECAST_USER"),
+		icecastPassword: viper.GetString("ICECAST_PASSWORD"),
+		icecastMount:    viper.GetString("ICECAST_MOUNT"),
 
-		schedulerEnabled: viper.GetBool("SCHEDULER_ENABLED"),
+		echeduler: viper.GetBool("SCHEDULER_ENABLED"),
 	}
 }
 
@@ -98,20 +99,13 @@ func (c *config) DatabaseConnection() (string, int, int) {
 	), c.dbMinConns, c.dbMaxConns
 }
 
-func (c *config) IcecastConnection() (string, string, string) {
-	return fmt.Sprintf("%s:%d", c.icecastHost, c.icecastPort),
-		c.icecastMount,
-		c.icecastAdminPassword
-}
-
-func (c *config) IcecastStatusURL() string {
-	return fmt.Sprintf("http://%s:%d/status-json.xsl", c.icecastHost, c.icecastPort)
-}
-
-func (c *config) IcecastStreamURL() string {
-	return fmt.Sprintf("http://%s:%d%s", c.icecastHost, c.icecastPort, c.icecastMount)
+func (c *config) IcecastConnection() (string, string, string, string) {
+	return fmt.Sprintf("http://%s:%d", c.icecastHost, c.icecastPort),
+		c.icecastUser,
+		c.icecastPassword,
+		c.icecastMount
 }
 
 func (c *config) SchedulerEnabled() bool {
-	return c.schedulerEnabled
+	return c.echeduler
 }

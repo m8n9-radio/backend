@@ -2,37 +2,37 @@ package service
 
 import (
 	"context"
+	"fmt"
 
-	"hub/internal/config"
 	"hub/internal/delivery/http/entity"
+	"hub/internal/infrastructure/icecast"
 )
 
-type RadioService interface {
-	GetRadioInfo(ctx context.Context) (*entity.RadioEntity, error)
-}
+type (
+	RadioService interface {
+		GetRadioInfo(ctx context.Context) (*entity.RadioEntity, error)
+	}
+	radioService struct {
+		icecastClient icecast.Client
+	}
+)
 
-type radioService struct {
-	cfg           config.Config
-	icecastClient IcecastClient
-}
-
-func NewRadioService(cfg config.Config, icecastClient IcecastClient) RadioService {
+func NewRadioService(icecastClient icecast.Client) RadioService {
 	return &radioService{
-		cfg:           cfg,
 		icecastClient: icecastClient,
 	}
 }
 
 func (s *radioService) GetRadioInfo(ctx context.Context) (*entity.RadioEntity, error) {
-	source, err := s.icecastClient.FetchStatus(ctx)
+	source, err := s.icecastClient.GetMountStats()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get icecast stats: %w", err)
 	}
 
 	return &entity.RadioEntity{
-		Name:        source.ServerName,
-		Description: source.ServerDescription,
-		StreamUrl:   s.cfg.IcecastStreamURL(),
+		Name:        source.Name,
+		Description: source.Description,
+		StreamUrl:   source.StreamURL,
 		Listener: entity.ListenerEntity{
 			Current: source.Listeners,
 			Peak:    source.ListenerPeak,

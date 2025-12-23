@@ -12,6 +12,7 @@ import (
 	"hub/internal/delivery/http/repository"
 	"hub/internal/delivery/http/server"
 	"hub/internal/delivery/http/service"
+	"hub/internal/infrastructure/icecast"
 	"hub/internal/logger"
 	"hub/internal/scheduler"
 
@@ -93,13 +94,13 @@ func ProvideReactionHandler(svc service.ReactionService) handler.ReactionHandler
 }
 
 // ProvideIcecastClient creates a new IcecastClient
-func ProvideIcecastClient(cfg config.Config) service.IcecastClient {
-	return service.NewIcecastClient(cfg)
+func ProvideIcecastClient(cfg config.Config) (icecast.Client, error) {
+	return icecast.NewClient(cfg)
 }
 
 // ProvideRadioService creates a new RadioService
-func ProvideRadioService(cfg config.Config, icecastClient service.IcecastClient) service.RadioService {
-	return service.NewRadioService(cfg, icecastClient)
+func ProvideRadioService(icecastClient icecast.Client) service.RadioService {
+	return service.NewRadioService(icecastClient)
 }
 
 // ProvideRadioHandler creates a new RadioHandler

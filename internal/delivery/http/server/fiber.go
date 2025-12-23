@@ -6,7 +6,7 @@ func FiberApplication() *fiber.App {
 	return fiber.New(fiber.Config{
 		AppName:            "Backend API Hub",
 		Prefork:            false,
-		EnablePrintRoutes:  false,
+		EnablePrintRoutes:  true,
 		StrictRouting:      false,
 		ReduceMemoryUsage:  true,
 		EnableIPValidation: true,
