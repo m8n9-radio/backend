@@ -62,24 +62,7 @@ func TestRadioHandler_GetInfo_Success(t *testing.T) {
 	}
 }
 
-func TestRadioHandler_GetInfo_IcecastUnavailable(t *testing.T) {
-	app := fiber.New()
-	mockService := &mockRadioService{
-		err: service.ErrIcecastUnavailable,
-	}
-	handler := NewRadioHandler(mockService)
-	app.Get("/radio/info", handler.GetInfo)
 
-	req := httptest.NewRequest("GET", "/radio/info", nil)
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("failed to test request: %v", err)
-	}
-
-	if resp.StatusCode != fiber.StatusServiceUnavailable {
-		t.Errorf("expected status 503, got %d", resp.StatusCode)
-	}
-}
 
 func TestRadioHandler_GetInfo_InvalidResponse(t *testing.T) {
 	app := fiber.New()

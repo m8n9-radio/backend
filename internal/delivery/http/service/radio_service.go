@@ -2,10 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"hub/internal/delivery/http/entity"
 	"hub/internal/infrastructure/icecast"
+)
+
+var (
+	ErrInvalidResponse = errors.New("invalid response from icecast server")
+	ErrNoActiveStream  = errors.New("no active stream available")
 )
 
 type (
