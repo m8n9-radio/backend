@@ -23,9 +23,10 @@ func NewTrackService(repo repository.TrackRepository) TrackService {
 
 func (s *trackService) Upsert(ctx context.Context, req *dto.CreateTrackRequest) (*entity.Track, error) {
 	track := &entity.Track{
-		ID:    req.Md5,
-		Title: req.StreamTitle,
-		Cover: req.StreamUrl,
+		ID:     req.Md5,
+		Rotate: 1,
+		Title:  req.StreamTitle,
+		Cover:  req.StreamUrl,
 	}
 
 	return s.repo.Upsert(ctx, track)

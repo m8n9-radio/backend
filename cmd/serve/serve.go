@@ -38,9 +38,12 @@ func NewServeCommand() *cobra.Command {
 				return app.Server.Listen(app.Config.Port())
 			})
 
-			g.Go(func() error {
-				return app.Scheduler.Start(gCtx)
-			})
+			if app.Config.SchedulerEnabled() {
+				g.Go(func() error {
+					app.Scheduler.Start()
+					return nil
+				})
+			}
 
 			g.Go(func() error {
 				select {

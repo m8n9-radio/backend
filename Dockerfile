@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     main.go
 
 FROM alpine:3.21
-ENV PORT=80
+ENV PORT=8080
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \

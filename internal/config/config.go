@@ -12,6 +12,7 @@ type (
 		Port() int
 		LogLevel() string
 		DatabaseConnection() (string, int, int)
+		RedisConnection() (string, string)
 		IcecastConnection() (string, string, string, string)
 		SchedulerEnabled() bool
 	}
@@ -34,7 +35,14 @@ type (
 		icecastPassword string
 		icecastMount    string
 
-		echeduler bool
+		redis_host     string
+		redis_port     int
+		redis_user     string
+		redis_password string
+		redis_db       int
+		redis_prefix   string
+
+		scheduler bool
 	}
 )
 
@@ -59,6 +67,13 @@ func NewConfig() Config {
 	viper.SetDefault("ICECAST_PASSWORD", "changeme")
 	viper.SetDefault("ICECAST_MOUNT", "/mp3")
 
+	viper.SetDefault("REDIS_HOST", "127.0.0.1")
+	viper.SetDefault("REDIS_PORT", "6379")
+	viper.SetDefault("REDIS_USERNAME", "admin")
+	viper.SetDefault("REDIS_PASSWORD", "")
+	viper.SetDefault("REDIS_DB", "1")
+	viper.SetDefault("REDIS_PREFIX", "be___")
+
 	viper.SetDefault("SCHEDULER_ENABLED", "false")
 
 	return &config{
@@ -80,7 +95,14 @@ func NewConfig() Config {
 		icecastPassword: viper.GetString("ICECAST_PASSWORD"),
 		icecastMount:    viper.GetString("ICECAST_MOUNT"),
 
-		echeduler: viper.GetBool("SCHEDULER_ENABLED"),
+		redis_host:     viper.GetString("REDIS_HOST"),
+		redis_port:     viper.GetInt("REDIS_PORT"),
+		redis_user:     viper.GetString("REDIS_USERNAME"),
+		redis_password: viper.GetString("REDIS_PASSWORD"),
+		redis_db:       viper.GetInt("REDIS_DB"),
+		redis_prefix:   viper.GetString("REDIS_PREFIX"),
+
+		scheduler: viper.GetBool("SCHEDULER_ENABLED"),
 	}
 }
 
@@ -106,6 +128,12 @@ func (c *config) IcecastConnection() (string, string, string, string) {
 		c.icecastMount
 }
 
+func (c *config) RedisConnection() (string, string) {
+	return fmt.Sprintf(
+		"redis://%s:%s@%s:%d/%d", c.redis_user, c.redis_password, c.redis_host, c.redis_port, c.redis_db,
+	), c.redis_prefix
+}
+
 func (c *config) SchedulerEnabled() bool {
-	return c.echeduler
+	return c.scheduler
 }

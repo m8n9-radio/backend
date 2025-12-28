@@ -16,8 +16,8 @@ import (
 	"hub/internal/delivery/http/server"
 	"hub/internal/delivery/http/service"
 	"hub/internal/infrastructure/icecast"
+	"hub/internal/infrastructure/scheduler"
 	"hub/internal/logger"
-	"hub/internal/scheduler"
 )
 
 // Injectors from wire.go:
@@ -40,8 +40,13 @@ func InitializeApp() (*Application, func(), error) {
 	}
 	radioService := ProvideRadioService(client)
 	radioHandler := ProvideRadioHandler(radioService)
-	server := ProvideServer(logger, pool, trackHandler, reactionHandler, radioHandler)
-	scheduler := ProvideScheduler(config, logger, pool)
+	statisticsRepository := ProvideStatisticsRepository(pool)
+	statisticsService := ProvideStatisticsService(statisticsRepository)
+	statisticsHandler := ProvideStatisticsHandler(statisticsService)
+	server := ProvideServer(logger, pool, trackHandler, reactionHandler, radioHandler, statisticsHandler)
+	listenerRepository := ProvideListenerRepository(pool)
+	listenerService := ProvideListenerService(client, listenerRepository, trackRepository)
+	scheduler := ProvideScheduler(listenerService)
 	application := ProvideApplication(config, logger, database, server, scheduler)
 	return application, func() {
 	}, nil
@@ -146,14 +151,43 @@ func ProvideRadioHandler(svc service.RadioService) handler.RadioHandler {
 	return handler.NewRadioHandler(svc)
 }
 
+// ProvideListenerRepository creates a new ListenerRepository
+func ProvideListenerRepository(pool *pgxpool.Pool) repository.ListenerRepository {
+	return repository.NewListenerRepository(pool)
+}
+
+// ProvideStatisticsRepository creates a new StatisticsRepository
+func ProvideStatisticsRepository(pool *pgxpool.Pool) repository.StatisticsRepository {
+	return repository.NewStatisticsRepository(pool)
+}
+
+// ProvideStatisticsService creates a new StatisticsService
+func ProvideStatisticsService(repo repository.StatisticsRepository) service.StatisticsService {
+	return service.NewStatisticsService(repo)
+}
+
+// ProvideStatisticsHandler creates a new StatisticsHandler
+func ProvideStatisticsHandler(svc service.StatisticsService) handler.StatisticsHandler {
+	return handler.NewStatisticsHandler(svc)
+}
+
+// ProvideListenerService creates a new ListenerService
+func ProvideListenerService(
+	icecastClient icecast.Client,
+	listenerRepo repository.ListenerRepository,
+	trackRepo repository.TrackRepository,
+) service.ListenerService {
+	return service.NewListenerService(icecastClient, listenerRepo, trackRepo)
+}
+
 // ProvideServer creates a new Server instance
-func ProvideServer(log *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler, reactionHandler handler.ReactionHandler, radioHandler handler.RadioHandler) server.Server {
-	return server.NewServer(log, pool, trackHandler, reactionHandler, radioHandler)
+func ProvideServer(log *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler, reactionHandler handler.ReactionHandler, radioHandler handler.RadioHandler, statisticsHandler handler.StatisticsHandler) server.Server {
+	return server.NewServer(log, pool, trackHandler, reactionHandler, radioHandler, statisticsHandler)
 }
 
 // ProvideScheduler creates a new Scheduler instance
-func ProvideScheduler(cfg config.Config, log *logger.Logger, pool *pgxpool.Pool) scheduler.Scheduler {
-	return scheduler.NewScheduler(cfg, log, pool)
+func ProvideScheduler(listenerService service.ListenerService) scheduler.Scheduler {
+	return scheduler.NewScheduler(listenerService)
 }
 
 // ProvideApplication creates the Application struct
@@ -198,6 +232,11 @@ var ProviderSet = wire.NewSet(
 	ProvideIcecastClient,
 	ProvideRadioService,
 	ProvideRadioHandler,
+	ProvideListenerRepository,
+	ProvideListenerService,
+	ProvideStatisticsRepository,
+	ProvideStatisticsService,
+	ProvideStatisticsHandler,
 	ProvideServer,
 	ProvideScheduler,
 	ProvideApplication,

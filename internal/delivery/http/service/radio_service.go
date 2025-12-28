@@ -17,6 +17,7 @@ var (
 type (
 	RadioService interface {
 		GetRadioInfo(ctx context.Context) (*entity.RadioEntity, error)
+		GetListen(ctx context.Context) (*entity.ListenerEntity, error)
 	}
 	radioService struct {
 		icecastClient icecast.Client
@@ -30,7 +31,7 @@ func NewRadioService(icecastClient icecast.Client) RadioService {
 }
 
 func (s *radioService) GetRadioInfo(ctx context.Context) (*entity.RadioEntity, error) {
-	source, err := s.icecastClient.GetMountStats()
+	source, err := s.icecastClient.MountStats()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get icecast stats: %w", err)
 	}
@@ -43,5 +44,17 @@ func (s *radioService) GetRadioInfo(ctx context.Context) (*entity.RadioEntity, e
 			Current: source.Listeners,
 			Peak:    source.ListenerPeak,
 		},
+	}, nil
+}
+
+func (s *radioService) GetListen(ctx context.Context) (*entity.ListenerEntity, error) {
+	source, err := s.icecastClient.MountStats()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get icecast stats: %w", err)
+	}
+
+	return &entity.ListenerEntity{
+		Current: source.Listeners,
+		Peak:    source.ListenerPeak,
 	}, nil
 }

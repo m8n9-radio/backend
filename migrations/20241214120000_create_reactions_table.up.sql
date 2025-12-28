@@ -1,6 +1,6 @@
 -- Migration up: Create reactions table
 CREATE TABLE reactions (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id CHAR(32) NOT NULL,
     track_id CHAR(32) NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
     reaction VARCHAR(10) NOT NULL CHECK (reaction IN ('like', 'dislike')),

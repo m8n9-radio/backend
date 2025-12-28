@@ -19,6 +19,7 @@ type (
 		Upsert(ctx context.Context, track *entity.Track) (*entity.Track, error)
 		ExistsByID(ctx context.Context, id string) (bool, error)
 		GetByID(ctx context.Context, id string) (*entity.Track, error)
+		UpdateListenerCount(ctx context.Context, trackID string, count int) error
 	}
 	trackRepository struct {
 		pool *pgxpool.Pool
@@ -31,8 +32,8 @@ func NewTrackRepository(pool *pgxpool.Pool) TrackRepository {
 
 func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*entity.Track, error) {
 	query := `
-		INSERT INTO tracks (id, title, cover)
-		VALUES ($1, $2, $3)
+		INSERT INTO tracks (id, title, cover, rotate)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE SET
 			cover = CASE
 				WHEN (tracks.cover IS NULL OR tracks.cover = '') AND EXCLUDED.cover != ''
@@ -45,21 +46,19 @@ func (r *trackRepository) Upsert(ctx context.Context, track *entity.Track) (*ent
 	`
 
 	var result entity.Track
-	err := r.pool.QueryRow(
-		ctx,
-		query,
-		track.ID, track.Title, track.Cover,
-	).Scan(
-		&result.ID,
-		&result.Title,
-		&result.Cover,
-		&result.Rotate,
-		&result.Likes,
-		&result.Dislikes,
-		&result.Listeners,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
+	err := r.pool.
+		QueryRow(ctx, query, track.ID, track.Title, track.Cover, track.Rotate).
+		Scan(
+			&result.ID,
+			&result.Title,
+			&result.Cover,
+			&result.Rotate,
+			&result.Likes,
+			&result.Dislikes,
+			&result.Listeners,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+		)
 
 	if err != nil {
 		return nil, err
@@ -110,4 +109,11 @@ func (r *trackRepository) GetByID(ctx context.Context, id string) (*entity.Track
 	}
 
 	return &result, nil
+}
+
+func (r *trackRepository) UpdateListenerCount(ctx context.Context, trackID string, count int) error {
+	query := `UPDATE tracks SET listeners = $1, updated_at = NOW() WHERE id = $2`
+
+	_, err := r.pool.Exec(ctx, query, count, trackID)
+	return err
 }
