@@ -3,10 +3,9 @@
 .gitignore
 .gitattributes
 
-# Documentation
+# Documentation (keep docs/ for swagger)
 *.md
 LICENSE
-docs/
 
 # Environment files (use build args or runtime env instead)
 .env*

@@ -104,3 +104,26 @@ func (l *Logger) WithFields(fields logrus.Fields) *logrus.Entry {
 func (l *Logger) WithError(err error) *logrus.Entry {
 	return l.logger.WithError(err)
 }
+
+// WithComponent returns a logger entry with component field.
+func (l *Logger) WithComponent(component string) *logrus.Entry {
+	return l.logger.WithField("component", component)
+}
+
+// WithOperation returns a logger entry with operation field.
+func (l *Logger) WithOperation(operation string) *logrus.Entry {
+	return l.logger.WithField("operation", operation)
+}
+
+// WithContext returns a logger entry with component and operation fields.
+func (l *Logger) WithContext(component, operation string) *logrus.Entry {
+	return l.logger.WithFields(logrus.Fields{
+		"component": component,
+		"operation": operation,
+	})
+}
+
+// WithCorrelationID returns a logger entry with correlation_id field.
+func (l *Logger) WithCorrelationID(correlationID string) *logrus.Entry {
+	return l.logger.WithField("correlation_id", correlationID)
+}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"hub/internal/wire"
 
@@ -53,6 +54,16 @@ func NewServeCommand() *cobra.Command {
 					app.Logger.Info("context cancelled")
 				}
 				cancel()
+
+				// Stop scheduler gracefully
+				if app.Config.SchedulerEnabled() {
+					shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer shutdownCancel()
+					if err := app.Scheduler.Stop(shutdownCtx); err != nil {
+						app.Logger.Errorf("scheduler stop error: %v", err)
+					}
+				}
+
 				return app.Server.Shutdown(ctx)
 			})
 

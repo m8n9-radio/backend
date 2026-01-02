@@ -9,50 +9,72 @@ package wire
 import (
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+	"hub/internal/application/listener"
+	"hub/internal/application/radio"
+	reaction2 "hub/internal/application/reaction"
+	"hub/internal/application/shared"
+	"hub/internal/application/statistics"
+	track2 "hub/internal/application/track"
 	"hub/internal/config"
 	"hub/internal/database"
-	"hub/internal/delivery/http/handler"
-	"hub/internal/delivery/http/repository"
-	"hub/internal/delivery/http/server"
-	"hub/internal/delivery/http/service"
+	"hub/internal/domain/reaction"
+	"hub/internal/domain/track"
+	"hub/internal/infrastructure/cache"
+	"hub/internal/infrastructure/events"
 	"hub/internal/infrastructure/icecast"
+	"hub/internal/infrastructure/metrics"
+	"hub/internal/infrastructure/persistence/postgres"
 	"hub/internal/infrastructure/scheduler"
+	"hub/internal/interfaces/http/handler"
+	"hub/internal/interfaces/http/server"
 	"hub/internal/logger"
 )
 
 // Injectors from wire.go:
 
-// InitializeApp creates a fully wired Application
 func InitializeApp() (*Application, func(), error) {
 	config := ProvideConfig()
 	logger := ProvideLogger(config)
 	database := ProvideDatabase(config, logger)
 	pool := ProvidePool(database)
 	trackRepository := ProvideTrackRepository(pool)
-	trackService := ProvideTrackService(trackRepository)
-	trackHandler := ProvideTrackHandler(trackService)
+	repository := ProvideTrackDomainRepository(trackRepository)
+	eventPublisher := ProvideEventPublisher()
+	upsertTrackHandler := ProvideUpsertTrackHandler(repository, eventPublisher)
+	getTrackHandler := ProvideGetTrackHandler(repository)
+	trackHandler := ProvideTrackHandler(upsertTrackHandler, getTrackHandler)
 	reactionRepository := ProvideReactionRepository(pool)
-	reactionService := ProvideReactionService(reactionRepository, trackRepository)
-	reactionHandler := ProvideReactionHandler(reactionService)
+	addReactionHandler := ProvideAddReactionHandler(reactionRepository, repository, eventPublisher)
+	checkReactionHandler := ProvideCheckReactionHandler(reactionRepository)
+	reactionHandler := ProvideReactionHandler(addReactionHandler, checkReactionHandler)
 	client, err := ProvideIcecastClient(config)
 	if err != nil {
 		return nil, nil, err
 	}
-	radioService := ProvideRadioService(client)
-	radioHandler := ProvideRadioHandler(radioService)
+	service := ProvideRadioService(client)
+	radioHandler := ProvideRadioHandler(service)
 	statisticsRepository := ProvideStatisticsRepository(pool)
 	statisticsService := ProvideStatisticsService(statisticsRepository)
 	statisticsHandler := ProvideStatisticsHandler(statisticsService)
-	server := ProvideServer(logger, pool, trackHandler, reactionHandler, radioHandler, statisticsHandler)
+	cache, err := ProvideCache(config, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	redisClient := ProvideRedisClient(cache)
+	healthHandler := ProvideHealthHandler(pool, redisClient)
+	router := ProvideRouter(trackHandler, reactionHandler, radioHandler, statisticsHandler, healthHandler)
+	server := ProvideServer(router, logger)
 	listenerRepository := ProvideListenerRepository(pool)
-	listenerService := ProvideListenerService(client, listenerRepository, trackRepository)
-	scheduler := ProvideScheduler(listenerService)
+	listenerAdapter := ProvideListenerAdapter(listenerRepository)
+	trackListenerAdapter := ProvideTrackListenerAdapter(trackRepository)
+	listenerService := ProvideListenerService(client, listenerAdapter, trackListenerAdapter, logger)
+	scheduler := ProvideScheduler(listenerService, logger)
 	application := ProvideApplication(config, logger, database, server, scheduler)
 	return application, func() {
 	}, nil
 }
 
-// InitializeMigrateApp creates dependencies for migrate commands
 func InitializeMigrateApp() (*MigrateApp, error) {
 	config := ProvideConfig()
 	logger := ProvideLogger(config)
@@ -68,7 +90,7 @@ type Application struct {
 	Config    config.Config
 	Logger    *logger.Logger
 	Database  database.Database
-	Server    server.Server
+	Server    *server.Server
 	Scheduler scheduler.Scheduler
 }
 
@@ -79,173 +101,158 @@ type MigrateApp struct {
 	DSN    string
 }
 
-// ProvideConfig creates a new Config instance
 func ProvideConfig() config.Config {
 	return config.NewConfig()
 }
 
-// ProvideLogger creates a new Logger instance
 func ProvideLogger(cfg config.Config) *logger.Logger {
 	return logger.NewLogger(cfg.LogLevel())
 }
 
-// ProvideDSN extracts the database connection string from config
 func ProvideDSN(cfg config.Config) string {
 	dsn, _, _ := cfg.DatabaseConnection()
 	return dsn
 }
 
-// ProvideDatabase creates a new Database instance
 func ProvideDatabase(cfg config.Config, log *logger.Logger) database.Database {
 	dsn, minConns, maxConns := cfg.DatabaseConnection()
 	return database.NewDatabase(dsn, minConns, maxConns, log)
 }
 
-// ProvidePool extracts the pgxpool.Pool from Database
 func ProvidePool(db database.Database) *pgxpool.Pool {
 	return db.Pool()
 }
 
-// ProvideTrackRepository creates a new TrackRepository
-func ProvideTrackRepository(pool *pgxpool.Pool) repository.TrackRepository {
-	return repository.NewTrackRepository(pool)
+func ProvideEventPublisher() shared.EventPublisher {
+	return events.NewInMemoryPublisher()
 }
 
-// ProvideTrackService creates a new TrackService
-func ProvideTrackService(repo repository.TrackRepository) service.TrackService {
-	return service.NewTrackService(repo)
+func ProvideCache(cfg config.Config, log *logger.Logger) (cache.Cache, error) {
+	return cache.NewCache(cfg, log)
 }
 
-// ProvideTrackHandler creates a new TrackHandler
-func ProvideTrackHandler(svc service.TrackService) handler.TrackHandler {
-	return handler.NewTrackHandler(svc)
+func ProvideRedisClient(c cache.Cache) *redis.Client {
+	return c.Client()
 }
 
-// ProvideReactionRepository creates a new ReactionRepository
-func ProvideReactionRepository(pool *pgxpool.Pool) repository.ReactionRepository {
-	return repository.NewReactionRepository(pool)
+func ProvideMetrics() *metrics.Metrics {
+	return metrics.NewMetrics()
 }
 
-// ProvideReactionService creates a new ReactionService
-func ProvideReactionService(reactionRepo repository.ReactionRepository, trackRepo repository.TrackRepository) service.ReactionService {
-	return service.NewReactionService(reactionRepo, trackRepo)
+func ProvideUnitOfWork(pool *pgxpool.Pool) *postgres.UnitOfWork {
+	return postgres.NewUnitOfWork(pool)
 }
 
-// ProvideReactionHandler creates a new ReactionHandler
-func ProvideReactionHandler(svc service.ReactionService) handler.ReactionHandler {
-	return handler.NewReactionHandler(svc)
+func ProvideTrackRepository(pool *pgxpool.Pool) *postgres.TrackRepository {
+	return postgres.NewTrackRepository(pool)
 }
 
-// ProvideIcecastClient creates a new IcecastClient
+func ProvideTrackDomainRepository(repo *postgres.TrackRepository) track.Repository {
+	return repo
+}
+
+func ProvideReactionRepository(pool *pgxpool.Pool) reaction.Repository {
+	return postgres.NewReactionRepository(pool)
+}
+
+func ProvideListenerRepository(pool *pgxpool.Pool) *postgres.ListenerRepository {
+	return postgres.NewListenerRepository(pool)
+}
+
+func ProvideStatisticsRepository(pool *pgxpool.Pool) *postgres.StatisticsRepository {
+	return postgres.NewStatisticsRepository(pool)
+}
+
+func ProvideListenerAdapter(repo *postgres.ListenerRepository) *postgres.ListenerAdapter {
+	return postgres.NewListenerAdapter(repo)
+}
+
+func ProvideTrackListenerAdapter(repo *postgres.TrackRepository) *postgres.TrackListenerAdapter {
+	return postgres.NewTrackListenerAdapter(repo)
+}
+
+func ProvideUpsertTrackHandler(repo track.Repository, pub shared.EventPublisher) *track2.UpsertTrackHandler {
+	return track2.NewUpsertTrackHandler(repo, pub)
+}
+
+func ProvideGetTrackHandler(repo track.Repository) *track2.GetTrackHandler {
+	return track2.NewGetTrackHandler(repo)
+}
+
+func ProvideAddReactionHandler(rr reaction.Repository, tr track.Repository, pub shared.EventPublisher) *reaction2.AddReactionHandler {
+	return reaction2.NewAddReactionHandler(rr, tr, pub)
+}
+
+func ProvideCheckReactionHandler(rr reaction.Repository) *reaction2.CheckReactionHandler {
+	return reaction2.NewCheckReactionHandler(rr)
+}
+
 func ProvideIcecastClient(cfg config.Config) (icecast.Client, error) {
 	return icecast.NewClient(cfg)
 }
 
-// ProvideRadioService creates a new RadioService
-func ProvideRadioService(icecastClient icecast.Client) service.RadioService {
-	return service.NewRadioService(icecastClient)
+func ProvideRadioService(ic icecast.Client) radio.Service {
+	return radio.NewService(ic)
 }
 
-// ProvideRadioHandler creates a new RadioHandler
-func ProvideRadioHandler(svc service.RadioService) handler.RadioHandler {
+func ProvideStatisticsService(repo *postgres.StatisticsRepository) statistics.Service {
+	return statistics.NewService(repo)
+}
+
+func ProvideListenerService(ic icecast.Client, la *postgres.ListenerAdapter, ta *postgres.TrackListenerAdapter, log *logger.Logger) listener.Service {
+	return listener.NewService(ic, la, ta, log)
+}
+
+func ProvideTrackHandler(uh *track2.UpsertTrackHandler, gh *track2.GetTrackHandler) *handler.TrackHandler {
+	return handler.NewTrackHandler(uh, gh)
+}
+
+func ProvideReactionHandler(ah *reaction2.AddReactionHandler, ch *reaction2.CheckReactionHandler) *handler.ReactionHandler {
+	return handler.NewReactionHandler(ah, ch)
+}
+
+func ProvideRadioHandler(svc radio.Service) *handler.RadioHandler {
 	return handler.NewRadioHandler(svc)
 }
 
-// ProvideListenerRepository creates a new ListenerRepository
-func ProvideListenerRepository(pool *pgxpool.Pool) repository.ListenerRepository {
-	return repository.NewListenerRepository(pool)
-}
-
-// ProvideStatisticsRepository creates a new StatisticsRepository
-func ProvideStatisticsRepository(pool *pgxpool.Pool) repository.StatisticsRepository {
-	return repository.NewStatisticsRepository(pool)
-}
-
-// ProvideStatisticsService creates a new StatisticsService
-func ProvideStatisticsService(repo repository.StatisticsRepository) service.StatisticsService {
-	return service.NewStatisticsService(repo)
-}
-
-// ProvideStatisticsHandler creates a new StatisticsHandler
-func ProvideStatisticsHandler(svc service.StatisticsService) handler.StatisticsHandler {
+func ProvideStatisticsHandler(svc statistics.Service) *handler.StatisticsHandler {
 	return handler.NewStatisticsHandler(svc)
 }
 
-// ProvideListenerService creates a new ListenerService
-func ProvideListenerService(
-	icecastClient icecast.Client,
-	listenerRepo repository.ListenerRepository,
-	trackRepo repository.TrackRepository,
-) service.ListenerService {
-	return service.NewListenerService(icecastClient, listenerRepo, trackRepo)
+func ProvideHealthHandler(pool *pgxpool.Pool, redisClient *redis.Client) *handler.HealthHandler {
+	return handler.NewHealthHandler(pool, redisClient)
 }
 
-// ProvideServer creates a new Server instance
-func ProvideServer(log *logger.Logger, pool *pgxpool.Pool, trackHandler handler.TrackHandler, reactionHandler handler.ReactionHandler, radioHandler handler.RadioHandler, statisticsHandler handler.StatisticsHandler) server.Server {
-	return server.NewServer(log, pool, trackHandler, reactionHandler, radioHandler, statisticsHandler)
+func ProvideRouter(th *handler.TrackHandler, rh *handler.ReactionHandler, rah *handler.RadioHandler, sh *handler.StatisticsHandler, hh *handler.HealthHandler) *server.Router {
+	return server.NewRouter(th, rh, rah, sh, hh)
 }
 
-// ProvideScheduler creates a new Scheduler instance
-func ProvideScheduler(listenerService service.ListenerService) scheduler.Scheduler {
-	return scheduler.NewScheduler(listenerService)
+func ProvideServer(router *server.Router, log *logger.Logger) *server.Server {
+	return server.NewServer(router, log)
 }
 
-// ProvideApplication creates the Application struct
-func ProvideApplication(
-	cfg config.Config,
-	log *logger.Logger,
-	db database.Database,
-	srv server.Server,
-	sched scheduler.Scheduler,
-) *Application {
-	return &Application{
-		Config:    cfg,
-		Logger:    log,
-		Database:  db,
-		Server:    srv,
-		Scheduler: sched,
-	}
+func ProvideScheduler(ls listener.Service, log *logger.Logger) scheduler.Scheduler {
+	return scheduler.NewScheduler(ls, log)
 }
 
-// ProvideMigrateApp creates the MigrateApp struct
+func ProvideApplication(cfg config.Config, log *logger.Logger, db database.Database, srv *server.Server, sched scheduler.Scheduler) *Application {
+	return &Application{Config: cfg, Logger: log, Database: db, Server: srv, Scheduler: sched}
+}
+
 func ProvideMigrateApp(cfg config.Config, log *logger.Logger, dsn string) *MigrateApp {
-	return &MigrateApp{
-		Config: cfg,
-		Logger: log,
-		DSN:    dsn,
-	}
+	return &MigrateApp{Config: cfg, Logger: log, DSN: dsn}
 }
 
-// ProviderSet is the main set of providers
 var ProviderSet = wire.NewSet(
-	ProvideConfig,
-	ProvideLogger,
-	ProvideDSN,
-	ProvideDatabase,
-	ProvidePool,
-	ProvideTrackRepository,
-	ProvideTrackService,
-	ProvideTrackHandler,
-	ProvideReactionRepository,
-	ProvideReactionService,
-	ProvideReactionHandler,
-	ProvideIcecastClient,
-	ProvideRadioService,
-	ProvideRadioHandler,
-	ProvideListenerRepository,
-	ProvideListenerService,
-	ProvideStatisticsRepository,
-	ProvideStatisticsService,
-	ProvideStatisticsHandler,
-	ProvideServer,
-	ProvideScheduler,
-	ProvideApplication,
+	ProvideConfig, ProvideLogger, ProvideDSN, ProvideDatabase, ProvidePool, ProvideEventPublisher,
+	ProvideCache, ProvideRedisClient, ProvideMetrics, ProvideUnitOfWork,
+	ProvideTrackRepository, ProvideTrackDomainRepository, ProvideReactionRepository,
+	ProvideListenerRepository, ProvideStatisticsRepository,
+	ProvideListenerAdapter, ProvideTrackListenerAdapter,
+	ProvideUpsertTrackHandler, ProvideGetTrackHandler, ProvideAddReactionHandler, ProvideCheckReactionHandler,
+	ProvideIcecastClient, ProvideRadioService, ProvideStatisticsService, ProvideListenerService,
+	ProvideTrackHandler, ProvideReactionHandler, ProvideRadioHandler, ProvideStatisticsHandler, ProvideHealthHandler,
+	ProvideRouter, ProvideServer, ProvideScheduler, ProvideApplication,
 )
 
-// MigrateProviderSet is the set of providers for migrate commands
-var MigrateProviderSet = wire.NewSet(
-	ProvideConfig,
-	ProvideLogger,
-	ProvideDSN,
-	ProvideMigrateApp,
-)
+var MigrateProviderSet = wire.NewSet(ProvideConfig, ProvideLogger, ProvideDSN, ProvideMigrateApp)

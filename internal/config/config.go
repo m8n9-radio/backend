@@ -74,7 +74,7 @@ func NewConfig() Config {
 	viper.SetDefault("REDIS_DB", "1")
 	viper.SetDefault("REDIS_PREFIX", "be___")
 
-	viper.SetDefault("SCHEDULER_ENABLED", "false")
+	viper.SetDefault("SCHEDULER_ENABLED", "true")
 
 	return &config{
 		port:     viper.GetInt("PORT"),

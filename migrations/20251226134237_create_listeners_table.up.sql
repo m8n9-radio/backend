@@ -1,7 +1,7 @@
 -- Migration up: Create listeners table
 CREATE TABLE listeners (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id CHAR(32) NOT NULL,
+    user_id CHAR(255) NOT NULL,
     track_id CHAR(32) NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, track_id)
